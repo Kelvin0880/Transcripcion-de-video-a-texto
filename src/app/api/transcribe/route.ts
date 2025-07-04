@@ -73,56 +73,111 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Por ahora, usar transcripción simulada
-    console.log('🔄 Procesando transcripción...');
+    // Verificar si tenemos API key de OpenAI configurada
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
+      console.log('🔄 MODO SIMULADO: Sin API key válida');
+      
+      const mockTranscript = {
+        text: "¡Hola! Esta es una transcripción de prueba. Para usar transcripción real, configura tu API key de OpenAI.",
+        timestamps: includeTimestamps ? [
+          { start: 0, end: 5, text: "¡Hola! Esta es una transcripción de prueba." },
+          { start: 5, end: 10, text: "Para usar transcripción real, configura tu API key de OpenAI." }
+        ] : [],
+        language: language === 'auto' ? 'es' : language,
+        duration: 10,
+        confidence: 0.95,
+        wordCount: 15
+      };
+
+      return NextResponse.json(mockTranscript);
+    }
+
+    // TRANSCRIPCIÓN REAL CON OPENAI WHISPER
+    console.log('🔄 Procesando transcripción REAL con OpenAI...');
+    console.log('🎤 API Key detectada:', {
+      length: process.env.OPENAI_API_KEY.length,
+      prefix: process.env.OPENAI_API_KEY.substring(0, 10) + '...'
+    });
     
-    // Simular tiempo de procesamiento
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    let transcription;
+    let retryCount = 0;
+    const maxRetries = 3;
     
-    const mockTranscript = {
-      text: "¡Hola! Esta es una transcripción de prueba generada por TranscriptorPro. " +
-            "Tu aplicación está funcionando perfectamente con tu OpenAI API Key real. " +
-            "Ahora puedes procesar videos reales y obtener transcripciones precisas usando " +
-            "la tecnología Whisper de OpenAI. ¡Felicidades por tu aplicación profesional!",
-      timestamps: includeTimestamps ? [
-        { start: 0, end: 3, text: "¡Hola! Esta es una transcripción de prueba generada por TranscriptorPro." },
-        { start: 3, end: 6, text: "Tu aplicación está funcionando perfectamente con tu OpenAI API Key real." },
-        { start: 6, end: 9, text: "Ahora puedes procesar videos reales y obtener transcripciones precisas" },
-        { start: 9, end: 12, text: "usando la tecnología Whisper de OpenAI." },
-        { start: 12, end: 15, text: "¡Felicidades por tu aplicación profesional!" }
-      ] : [],
-      language: language === 'auto' ? 'es' : language,
-      duration: 15,
-      confidence: 0.98,
-      wordCount: 45
+    while (retryCount <= maxRetries) {
+      try {
+        console.log(`🎤 Intento ${retryCount + 1}/${maxRetries + 1} - Llamando a OpenAI Whisper...`);
+        
+        transcription = await openai.audio.transcriptions.create({
+          file: file,
+          model: "whisper-1",
+          language: language === 'auto' ? undefined : language,
+          response_format: includeTimestamps ? "verbose_json" : "json",
+          timestamp_granularities: includeTimestamps ? ["segment"] : undefined,
+        });
+        
+        console.log('🎤 ¡Respuesta REAL de OpenAI recibida!');
+        break; // Éxito, salir del bucle
+        
+      } catch (openaiError) {
+        console.error(`❌ Error en intento ${retryCount + 1}:`, openaiError);
+        
+        if (openaiError instanceof OpenAI.APIError && openaiError.status === 429) {
+          retryCount++;
+          if (retryCount <= maxRetries) {
+            const waitTime = Math.pow(2, retryCount) * 1000; // 2s, 4s, 8s
+            console.log(`⏱️ Rate limit - Esperando ${waitTime/1000}s antes del reintento...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            continue;
+          } else {
+            return NextResponse.json({
+              error: 'Límite de OpenAI excedido después de varios intentos. Necesitas verificar tu cuenta en platform.openai.com agregando un método de pago.'
+            }, { status: 429 });
+          }
+        }
+        
+        // Otros errores de OpenAI
+        return NextResponse.json({
+          error: 'Error al procesar archivo con OpenAI: ' + (openaiError as Error).message
+        }, { status: 500 });
+      }
+    }
+
+    // Verificar que recibimos una transcripción válida
+    if (!transcription || !transcription.text) {
+      console.error('❌ Transcripción vacía recibida de OpenAI');
+      return NextResponse.json({
+        error: 'No se pudo obtener transcripción del archivo'
+      }, { status: 500 });
+    }
+
+    // Formatear la respuesta real de OpenAI
+    const response = {
+      text: transcription.text.trim(),
+      timestamps: includeTimestamps && typeof transcription === 'object' && 'segments' in transcription ? 
+        (transcription.segments as any[])?.map((segment: any) => ({
+          start: Math.round(segment.start * 100) / 100,
+          end: Math.round(segment.end * 100) / 100,
+          text: segment.text?.trim() || ''
+        })).filter(segment => segment.text.length > 0) : [],
+      language: (transcription as any).language || (language === 'auto' ? 'es' : language),
+      duration: Math.round(((transcription as any).duration || 0) * 100) / 100,
+      confidence: 0.95,
+      wordCount: transcription.text.trim().split(/\s+/).filter((word: string) => word.length > 0).length
     };
 
-    console.log('✅ Transcripción completada exitosamente');
-    return NextResponse.json(mockTranscript);
+    console.log('✅ Transcripción REAL completada exitosamente:', {
+      textLength: response.text.length,
+      wordCount: response.wordCount,
+      duration: response.duration
+    });
+    
+    return NextResponse.json(response);
 
   } catch (error) {
-    console.error('❌ Error en transcripción:', error);
+    console.error('❌ Error general en transcripción:', error);
     return NextResponse.json(
-      { error: 'Transcription failed. Please try again.' },
+      { error: 'Error interno del servidor. Inténtalo de nuevo.' },
       { status: 500 }
     );
   }
 }
-
-// Nota: Para usar OpenAI real, descomenta el siguiente código:
-/*
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Reemplaza la simulación con:
-const transcription = await openai.audio.transcriptions.create({
-  file: file,
-  model: "whisper-1",
-  language: language === 'auto' ? undefined : language,
-  response_format: includeTimestamps ? "verbose_json" : "json",
-  timestamp_granularities: includeTimestamps ? ["segment"] : undefined,
-});
-*/
