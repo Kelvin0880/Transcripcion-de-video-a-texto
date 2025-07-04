@@ -48,7 +48,7 @@
 
 ### Backend & APIs
 - **Next.js API Routes** - Endpoints optimizados
-- **OpenAI Whisper** - Transcripción de audio de alta calidad
+- **AssemblyAI** - Transcripción de audio de alta calidad (3 horas gratuitas/mes)
 - **Google Translate API** - Traducción automática
 - **Multer** - Manejo de archivos multimedia
 
@@ -64,7 +64,7 @@
 ### Prerrequisitos
 - Node.js 18.0.0 o superior
 - npm o yarn
-- Cuenta en OpenAI (para transcripción real)
+- Cuenta en AssemblyAI (para transcripción real - gratuita)
 - Cuenta en Google Cloud (para traducción real)
 
 ### Instalación Local
@@ -87,7 +87,7 @@ cp .env.example .env.local
 
 Edita `.env.local` con tus claves API:
 ```env
-OPENAI_API_KEY=tu_clave_openai_aqui
+ASSEMBLYAI_API_KEY=tu_clave_assemblyai_aqui
 GOOGLE_TRANSLATE_API_KEY=tu_clave_google_aqui
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
@@ -125,7 +125,7 @@ http://localhost:3000
    ```
    NODE_ENV=production
    NEXT_PUBLIC_SITE_URL=https://tu-app.onrender.com
-   OPENAI_API_KEY=tu_clave_openai
+   ASSEMBLYAI_API_KEY=tu_clave_assemblyai
    GOOGLE_TRANSLATE_API_KEY=tu_clave_google
    ```
 
@@ -182,7 +182,7 @@ NODE_ENV=production
 NEXT_PUBLIC_SITE_URL=https://tu-dominio.com
 
 # APIs (opcionales para desarrollo)
-OPENAI_API_KEY=sk-...
+ASSEMBLYAI_API_KEY=sk-...
 GOOGLE_TRANSLATE_API_KEY=AIza...
 
 # Configuración opcional
@@ -261,7 +261,7 @@ Este proyecto está bajo la Licencia MIT. Ver [LICENSE](LICENSE) para más detal
 
 ### 🌟 Agradecimientos
 
-- OpenAI por la API de Whisper
+- AssemblyAI por la API de transcripción gratuita
 - Google por la API de Translate
 - Vercel por Next.js
 - Tailwind CSS por el framework

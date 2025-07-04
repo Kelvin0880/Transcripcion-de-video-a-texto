@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { AssemblyAI } from 'assemblyai';
 
-// Configuración de OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// USANDO ASSEMBLYAI - GRATIS 3 HORAS/MES
+// Configuración de AssemblyAI (alternativa gratuita a OpenAI)
+const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY || '';
+
+// Inicializar cliente AssemblyAI
+const client = ASSEMBLYAI_API_KEY ? new AssemblyAI({
+  apiKey: ASSEMBLYAI_API_KEY,
+}) : null;
 
 // Rate limiting simple
 const requestCounts = new Map();
@@ -73,15 +77,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar si tenemos API key de OpenAI configurada
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
-      console.log('🔄 MODO SIMULADO: Sin API key válida');
+    // Verificar si tenemos API key de AssemblyAI configurada
+    if (!ASSEMBLYAI_API_KEY || ASSEMBLYAI_API_KEY === 'your_assemblyai_api_key_here') {
+      console.log('🔄 MODO SIMULADO: Sin API key válida de AssemblyAI');
       
       const mockTranscript = {
-        text: "¡Hola! Esta es una transcripción de prueba. Para usar transcripción real, configura tu API key de OpenAI.",
+        text: "¡Hola! Esta es una transcripción de prueba. Para usar transcripción real, configura tu API key de AssemblyAI.",
         timestamps: includeTimestamps ? [
           { start: 0, end: 5, text: "¡Hola! Esta es una transcripción de prueba." },
-          { start: 5, end: 10, text: "Para usar transcripción real, configura tu API key de OpenAI." }
+          { start: 5, end: 10, text: "Para usar transcripción real, configura tu API key de AssemblyAI." }
         ] : [],
         language: language === 'auto' ? 'es' : language,
         duration: 10,
@@ -92,12 +96,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(mockTranscript);
     }
 
-    // TRANSCRIPCIÓN REAL CON OPENAI WHISPER
-    console.log('🔄 Procesando transcripción REAL con OpenAI...');
+    // TRANSCRIPCIÓN REAL CON ASSEMBLYAI
+    console.log('🔄 Procesando transcripción REAL con AssemblyAI...');
     console.log('🎤 API Key detectada:', {
-      length: process.env.OPENAI_API_KEY.length,
-      prefix: process.env.OPENAI_API_KEY.substring(0, 10) + '...'
+      length: ASSEMBLYAI_API_KEY.length,
+      prefix: ASSEMBLYAI_API_KEY.substring(0, 10) + '...'
     });
+
+    if (!client) {
+      return NextResponse.json({
+        error: 'Cliente AssemblyAI no configurado correctamente'
+      }, { status: 500 });
+    }
     
     let transcription;
     let retryCount = 0;
@@ -105,23 +115,45 @@ export async function POST(request: NextRequest) {
     
     while (retryCount <= maxRetries) {
       try {
-        console.log(`🎤 Intento ${retryCount + 1}/${maxRetries + 1} - Llamando a OpenAI Whisper...`);
+        console.log(`🎤 Intento ${retryCount + 1}/${maxRetries + 1} - Subiendo archivo a AssemblyAI...`);
         
-        transcription = await openai.audio.transcriptions.create({
-          file: file,
-          model: "whisper-1",
-          language: language === 'auto' ? undefined : language,
-          response_format: includeTimestamps ? "verbose_json" : "json",
-          timestamp_granularities: includeTimestamps ? ["segment"] : undefined,
-        });
+        // Convertir archivo a buffer
+        const buffer = Buffer.from(await file.arrayBuffer());
         
-        console.log('🎤 ¡Respuesta REAL de OpenAI recibida!');
+        // Subir archivo a AssemblyAI
+        const uploadResponse = await client.files.upload(buffer);
+        
+        console.log('📤 Archivo subido, iniciando transcripción...');
+        
+        // Configurar parámetros de transcripción
+        const params = {
+          audio_url: uploadResponse,
+          language_code: language === 'auto' ? undefined : language,
+          punctuate: true,
+          format_text: true,
+        };
+        
+        // Agregar timestamps si se requieren
+        if (includeTimestamps) {
+          (params as any).word_boost = [];
+          (params as any).boost_param = 'default';
+        }
+        
+        // Iniciar transcripción
+        const transcript = await client.transcripts.create(params);
+        
+        // Esperar a que se complete
+        console.log('⏳ Esperando transcripción...');
+        transcription = await client.transcripts.waitUntilReady(transcript.id);
+        
+        console.log('🎤 ¡Respuesta REAL de AssemblyAI recibida!');
         break; // Éxito, salir del bucle
         
-      } catch (openaiError) {
-        console.error(`❌ Error en intento ${retryCount + 1}:`, openaiError);
+      } catch (assemblyError) {
+        console.error(`❌ Error en intento ${retryCount + 1}:`, assemblyError);
         
-        if (openaiError instanceof OpenAI.APIError && openaiError.status === 429) {
+        // Verificar si es error de rate limit
+        if (assemblyError instanceof Error && assemblyError.message.includes('rate limit')) {
           retryCount++;
           if (retryCount <= maxRetries) {
             const waitTime = Math.pow(2, retryCount) * 1000; // 2s, 4s, 8s
@@ -130,38 +162,38 @@ export async function POST(request: NextRequest) {
             continue;
           } else {
             return NextResponse.json({
-              error: 'Límite de OpenAI excedido después de varios intentos. Necesitas verificar tu cuenta en platform.openai.com agregando un método de pago.'
+              error: 'Límite de AssemblyAI excedido después de varios intentos. Intenta más tarde.'
             }, { status: 429 });
           }
         }
         
-        // Otros errores de OpenAI
+        // Otros errores de AssemblyAI
         return NextResponse.json({
-          error: 'Error al procesar archivo con OpenAI: ' + (openaiError as Error).message
+          error: 'Error al procesar archivo con AssemblyAI: ' + (assemblyError as Error).message
         }, { status: 500 });
       }
     }
 
     // Verificar que recibimos una transcripción válida
     if (!transcription || !transcription.text) {
-      console.error('❌ Transcripción vacía recibida de OpenAI');
+      console.error('❌ Transcripción vacía recibida de AssemblyAI');
       return NextResponse.json({
         error: 'No se pudo obtener transcripción del archivo'
       }, { status: 500 });
     }
 
-    // Formatear la respuesta real de OpenAI
+    // Formatear la respuesta real de AssemblyAI
     const response = {
       text: transcription.text.trim(),
-      timestamps: includeTimestamps && typeof transcription === 'object' && 'segments' in transcription ? 
-        (transcription.segments as any[])?.map((segment: any) => ({
-          start: Math.round(segment.start * 100) / 100,
-          end: Math.round(segment.end * 100) / 100,
-          text: segment.text?.trim() || ''
-        })).filter(segment => segment.text.length > 0) : [],
-      language: (transcription as any).language || (language === 'auto' ? 'es' : language),
-      duration: Math.round(((transcription as any).duration || 0) * 100) / 100,
-      confidence: 0.95,
+      timestamps: includeTimestamps && transcription.words ? 
+        transcription.words.map((word: any) => ({
+          start: Math.round(word.start / 1000 * 100) / 100, // Convertir ms a segundos
+          end: Math.round(word.end / 1000 * 100) / 100,
+          text: word.text
+        })) : [],
+      language: transcription.language_code || (language === 'auto' ? 'es' : language),
+      duration: Math.round((transcription.audio_duration || 0) * 100) / 100,
+      confidence: transcription.confidence || 0.95,
       wordCount: transcription.text.trim().split(/\s+/).filter((word: string) => word.length > 0).length
     };
 
