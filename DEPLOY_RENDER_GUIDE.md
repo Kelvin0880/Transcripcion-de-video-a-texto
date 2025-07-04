@@ -30,7 +30,7 @@
 - **Runtime**: `Node`
 
 #### Build & Deploy
-- **Build Command**: `npm install && npm run build`
+- **Build Command**: `npm install --legacy-peer-deps && npm run build`
 - **Start Command**: `npm start`
 
 ### 3. Configurar Variables de Entorno
