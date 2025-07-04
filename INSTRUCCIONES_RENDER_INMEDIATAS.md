@@ -9,6 +9,7 @@
 - ✅ Actualizado React a versión 18.3.1 (compatible)
 - ✅ Actualizado Framer Motion a versión 11.0.0
 - ✅ Corregido build command con `--legacy-peer-deps`
+- ✅ Movido TailwindCSS a dependencies (para Render)
 
 ### 🎯 PASOS INMEDIATOS EN RENDER:
 
@@ -19,7 +20,7 @@
 2. **Hacer Manual Deploy**
    - Ve a la pestaña "Manual Deploy"
    - Haz clic en "Deploy latest commit"
-   - Debería ver el commit: `438da21 - Fix: Solucionando conflictos de dependencias React 18 compatible`
+   - Debería ver el commit: `0363c92 - Fix: Moviendo TailwindCSS a dependencies para Render`
 
 3. **Monitorear los logs**
    - Debería funcionar sin errores ahora
