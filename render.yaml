@@ -1,0 +1,45 @@
+# Render Configuration
+# This file contains optimal settings for Render.com deployment
+
+# Build Configuration
+buildCommand: npm install && npm run build
+startCommand: npm start
+
+# Environment Configuration
+environment: production
+region: ohio
+
+# Performance Settings
+maxConcurrency: 100
+healthCheckPath: /api/health
+autoDeploy: true
+
+# Resource Limits
+memory: 1GB
+cpu: 0.5
+disk: 10GB
+
+# Auto-scaling (Pro plans only)
+minInstances: 1
+maxInstances: 3
+
+# Custom Headers
+customHeaders:
+  - path: /*
+    headers:
+      X-Frame-Options: DENY
+      X-Content-Type-Options: nosniff
+      X-XSS-Protection: 1; mode=block
+      Strict-Transport-Security: max-age=31536000; includeSubDomains
+      Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https:
+
+# Environment Variables Template
+environmentVariables:
+  NODE_ENV: production
+  NEXT_PUBLIC_SITE_URL: https://transcriptor-pro.onrender.com
+  OPENAI_API_KEY: ${OPENAI_API_KEY}
+  NEXT_PUBLIC_MAX_FILE_SIZE: "104857600"
+  NEXT_PUBLIC_MAX_DURATION: "600"
+  NEXT_PUBLIC_SUPPORTED_FORMATS: "mp4,avi,mov,mkv,webm,flv,wmv,m4v,mp3,wav,flac,m4a,aac,ogg"
+  RATE_LIMIT_MAX_REQUESTS: "10"
+  RATE_LIMIT_WINDOW_MS: "60000"
